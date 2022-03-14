@@ -9,9 +9,15 @@ import (
 
 var (
 	name = "user"
+	stop = make(chan bool, 1)
 )
 
 func TestETCD(t *testing.T) {
+	defer close(stop)
+	go func() {
+		time.Sleep(time.Minute * 3)
+		stop <- true
+	}()
 	client, err := etcd.NewEtcdClient(etcd.ETCD{
 		Address: []string{"127.0.0.1:2379"},
 		Timeout: time.Second * 3,
@@ -31,6 +37,7 @@ func TestETCD(t *testing.T) {
 			return
 		}
 		fmt.Println("注册地址:", address)
+		<-stop
 	})
 	t.Run("get", func(t *testing.T) {
 		discover, err := client.Discover()

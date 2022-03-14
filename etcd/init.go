@@ -124,15 +124,17 @@ func (e *ETCD) registerNode(name string, opt Option) (err error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	lease := clientv3.NewLease(e.client)
+	e.lease = lease
 	grant, err := lease.Grant(ctx, 5)
 	if err != nil {
 		return err
 	}
+	e.leaseId = grant.ID
 	_, err = e.client.Put(ctx, name, string(decode(opt)), clientv3.WithLease(grant.ID))
 	if err != nil {
 		return err
 	}
-	go leaseRenewal(lease, grant.ID)
+	go e.leaseRenewal()
 	return nil
 }
 
@@ -166,7 +168,7 @@ func defaultAddress(addr string) (host string, port string, err error) {
 }
 
 //延续租约
-func leaseRenewal(l clientv3.Lease, id clientv3.LeaseID) {
+func (e *ETCD) leaseRenewal() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	for {
@@ -174,12 +176,15 @@ func leaseRenewal(l clientv3.Lease, id clientv3.LeaseID) {
 		case <-stopChan:
 			return
 		default:
-			alive, err := l.KeepAlive(ctx, id)
+			alive, err := e.lease.KeepAlive(ctx, e.leaseId)
 			if err != nil {
-				fmt.Println(id, "续租失败:", err)
+				fmt.Println(e.leaseId, "续租失败:", err)
 			}
-			_ = <-alive
+			for result := range alive {
+				e.leaseId = result.ID
+				//fmt.Println("续租时长:", time.Duration(result.TTL))
+			}
 		}
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * e.Timeout)
 	}
 }

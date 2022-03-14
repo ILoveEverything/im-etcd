@@ -21,6 +21,8 @@ type ETCD struct {
 	client  *clientv3.Client  //etcd客户端
 	node    map[string]Option //节点信息
 	lock    sync.Mutex        //互斥锁
+	lease   clientv3.Lease    //租约
+	leaseId clientv3.LeaseID  //续租id
 }
 
 // Option 服务信息
