@@ -115,6 +115,7 @@ func (e *ETCD) Watch() {
 }
 
 func (e *ETCD) Close() {
+	stopChan <- true
 	_ = e.client.Close()
 }
 
@@ -177,7 +178,7 @@ func leaseRenewal(l clientv3.Lease, id clientv3.LeaseID) {
 			if err != nil {
 				fmt.Println(id, "续租失败:", err)
 			}
-			<-alive
+			_ = <-alive
 		}
 		time.Sleep(time.Second * 5)
 	}
