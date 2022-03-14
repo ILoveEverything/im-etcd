@@ -114,6 +114,10 @@ func (e *ETCD) Watch() {
 	}
 }
 
+func (e *ETCD) Close() {
+	_ = e.client.Close()
+}
+
 //注册单节点
 func (e *ETCD) registerNode(name string, opt Option) (err error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -169,10 +173,11 @@ func leaseRenewal(l clientv3.Lease, id clientv3.LeaseID) {
 		case <-stopChan:
 			return
 		default:
-			_, err := l.KeepAlive(ctx, id)
+			alive, err := l.KeepAlive(ctx, id)
 			if err != nil {
 				fmt.Println(id, "续租失败:", err)
 			}
+			<-alive
 		}
 		time.Sleep(time.Second * 5)
 	}

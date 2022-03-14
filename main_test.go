@@ -20,6 +20,7 @@ func TestETCD(t *testing.T) {
 		t.Errorf("初始化etcd客户端失败:%v", err)
 		return
 	}
+	defer client.Close()
 	t.Run("put", func(t *testing.T) {
 		address, err := client.Register(etcd.Option{
 			Name:    name,

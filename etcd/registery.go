@@ -15,6 +15,7 @@ type Registry interface {
 	Unregister() error                      //反注册
 	Discover() (map[string][]string, error) //发现所有服务
 	Watch()                                 //监控
+	Close()                                 //关闭
 }
 
 // NewEtcdClient etcd客户端
