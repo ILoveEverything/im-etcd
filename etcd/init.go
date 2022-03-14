@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.etcd.io/etcd/client/v3"
 	"net"
+	"time"
 )
 
 func (e *ETCD) Register(opt Option) (string, error) {
@@ -173,7 +174,6 @@ func leaseRenewal(l clientv3.Lease, id clientv3.LeaseID) {
 				fmt.Println(id, "续租失败:", err)
 			}
 		}
-		return
-		//time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 5)
 	}
 }
