@@ -14,6 +14,7 @@ type Registry interface {
 	Register(Option) (string, error)        //注册
 	Unregister() error                      //反注册
 	Discover() (map[string][]string, error) //发现所有服务
+	ServerNode() map[string][]string        //获取服务节点地址
 	Watch()                                 //监控
 	Close()                                 //关闭
 }

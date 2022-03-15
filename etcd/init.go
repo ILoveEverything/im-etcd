@@ -3,6 +3,7 @@ package etcd
 import (
 	"context"
 	"fmt"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/client/v3"
 	"net"
 	"time"
@@ -88,6 +89,24 @@ func (e *ETCD) Discover() (map[string][]string, error) {
 	return list, nil
 }
 
+func (e *ETCD) ServerNode() map[string][]string {
+	var list = make(map[string][]string)
+	e.lock.Lock()
+	for _, opt := range e.node {
+		addr, ok := list[opt.Name]
+		if ok {
+			addr = append(addr, opt.Address)
+			list[opt.Name] = addr
+		} else {
+			as := make([]string, 0)
+			as = append(as, opt.Address)
+			list[opt.Name] = as
+		}
+	}
+	e.lock.Unlock()
+	return list
+}
+
 func (e *ETCD) Watch() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -97,15 +116,23 @@ func (e *ETCD) Watch() {
 	}
 	for {
 		watch := e.client.Watch(ctx, prefix, clientv3.WithPrefix())
-		for {
-			for _, v := range (<-watch).Events {
+		for ev := range watch {
+			for _, v := range ev.Events {
 				if v != nil && v.PrevKv != nil {
+					fmt.Println("type:", mvccpb.Event_EventType_name[int32(v.Type)])
+					fmt.Println("key:", string(v.PrevKv.Key))
+					fmt.Println("val:", string(v.PrevKv.Value))
 					e.lock.Lock()
-					if e.node != nil {
-						e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
-					} else {
-						e.node = make(map[string]Option)
-						e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
+					if v.Type == mvccpb.PUT {
+						if e.node != nil {
+							e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
+						} else {
+							e.node = make(map[string]Option)
+							e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
+						}
+					}
+					if v.Type == mvccpb.DELETE {
+						delete(e.node, string(v.PrevKv.Key))
 					}
 					e.lock.Unlock()
 				}

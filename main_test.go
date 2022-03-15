@@ -37,7 +37,6 @@ func TestETCD(t *testing.T) {
 			return
 		}
 		fmt.Println("注册地址:", address)
-		<-stop
 	})
 	t.Run("get", func(t *testing.T) {
 		discover, err := client.Discover()
@@ -47,4 +46,8 @@ func TestETCD(t *testing.T) {
 		}
 		fmt.Println(discover)
 	})
+	t.Run("watch", func(t *testing.T) {
+		client.Watch()
+	})
+	<-stop
 }
