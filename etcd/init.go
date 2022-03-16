@@ -118,15 +118,11 @@ func (e *ETCD) Watch(name string) {
 	watch := e.client.Watch(ctx, joinServerPrefix(name), clientv3.WithPrefix())
 	for ev := range watch {
 		for _, v := range ev.Events {
-			fmt.Println("v", v)
 			if v != nil && v.Kv != nil {
-				fmt.Println("type:", mvccpb.Event_EventType_name[int32(v.Type)])
-				fmt.Println("key:", string(v.Kv.Key))
-				fmt.Println("val:", string(v.Kv.Value))
 				e.lock.Lock()
 				if v.Type == mvccpb.PUT {
 					if e.node != nil {
-						e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
+						e.node[string(v.Kv.Key)] = encode(v.Kv.Value)
 					} else {
 						e.node = make(map[string]Option)
 						e.node[string(v.Kv.Key)] = encode(v.Kv.Value)
@@ -209,7 +205,6 @@ func (e *ETCD) leaseRenewal() {
 			}
 			for result := range alive {
 				e.leaseId = result.ID
-				//fmt.Println("续租时长:", time.Duration(result.TTL))
 			}
 		}
 		time.Sleep(time.Second * e.Timeout)
