@@ -11,12 +11,12 @@ import (
 
 // Registry 获取etcd客户端
 type Registry interface {
-	Register(Option) (string, error)                //注册
-	Unregister() error                              //反注册
-	Discover(string) error                          //发现所有服务
-	ServerNode(string) (map[string][]string, error) //获取服务节点地址
-	Watch(string)                                   //监控
-	Close()                                         //关闭
+	Register(Option) (string, error)     //注册
+	Unregister() error                   //反注册
+	Discover(string) error               //发现所有服务
+	ServerNode(string) ([]string, error) //获取服务节点地址
+	Watch(string)                        //监控
+	Close()                              //关闭
 }
 
 // NewEtcdClient etcd客户端

@@ -77,24 +77,16 @@ func (e *ETCD) Discover(name string) error {
 	return nil
 }
 
-func (e *ETCD) ServerNode(name string) (map[string][]string, error) {
+func (e *ETCD) ServerNode(name string) ([]string, error) {
 	if e.isNull() {
 		return nil, errClientNotExist
 	}
-	var list = make(map[string][]string)
+	var list = make([]string, 0)
 NODE:
 	e.lock.Lock()
 	for _, opt := range e.node {
 		if opt.Name == name {
-			addr, ok := list[opt.Name]
-			if ok {
-				addr = append(addr, opt.Address)
-				list[opt.Name] = addr
-			} else {
-				as := make([]string, 0)
-				as = append(as, opt.Address)
-				list[opt.Name] = as
-			}
+			list = append(list, opt.Address)
 		}
 	}
 	e.lock.Unlock()
