@@ -18,7 +18,7 @@ func TestETCD(t *testing.T) {
 		time.Sleep(time.Minute * 3)
 		stop <- true
 	}()
-	client, err := etcd.NewEtcdClient(etcd.ETCD{
+	client, err := etcd.NewEtcdClient(&etcd.ETCD{
 		Address: []string{"127.0.0.1:2379"},
 		Timeout: time.Second * 3,
 	})
@@ -39,15 +39,12 @@ func TestETCD(t *testing.T) {
 		fmt.Println("注册地址:", address)
 	})
 	t.Run("get", func(t *testing.T) {
-		discover, err := client.Discover()
+		node, err := client.ServerNode(name)
 		if err != nil {
 			t.Errorf("获取etcd节点信息失败:%v", err)
 			return
 		}
-		fmt.Println(discover)
-	})
-	t.Run("watch", func(t *testing.T) {
-		client.Watch()
+		fmt.Println(node)
 	})
 	<-stop
 }

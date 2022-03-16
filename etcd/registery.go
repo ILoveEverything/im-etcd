@@ -11,16 +11,16 @@ import (
 
 // Registry 获取etcd客户端
 type Registry interface {
-	Register(Option) (string, error)        //注册
-	Unregister() error                      //反注册
-	Discover() (map[string][]string, error) //发现所有服务
-	ServerNode() map[string][]string        //获取服务节点地址
-	Watch()                                 //监控
-	Close()                                 //关闭
+	Register(Option) (string, error)                //注册
+	Unregister() error                              //反注册
+	Discover(string) error                          //发现所有服务
+	ServerNode(string) (map[string][]string, error) //获取服务节点地址
+	Watch(string)                                   //监控
+	Close()                                         //关闭
 }
 
 // NewEtcdClient etcd客户端
-func NewEtcdClient(opt ETCD) (Registry, error) {
+func NewEtcdClient(opt *ETCD) (Registry, error) {
 	var etcd = ETCD{
 		Address: []string{"127.0.0.1:2379"},
 		Timeout: time.Second * 5,
@@ -97,6 +97,12 @@ func encode(val []byte) Option {
 	return n
 }
 
-func joinKey(name string) string {
+//拼接定义服务节点名称
+func joinServerName(name string) string {
 	return prefix + "/" + name + "/" + uuid.New().String()
+}
+
+//拼接服务前缀作用查询此服务的所有节点
+func joinServerPrefix(name string) string {
+	return prefix + "/" + name + "/"
 }

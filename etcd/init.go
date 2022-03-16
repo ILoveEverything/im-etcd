@@ -31,19 +31,21 @@ func (e *ETCD) Register(opt Option) (string, error) {
 		}
 		opt.Address = net.JoinHostPort(host, port)
 	}
-	err := e.registerNode(joinKey(opt.Name), opt)
+	err := e.registerNode(joinServerName(opt.Name), opt)
 	if err != nil {
 		return "", err
 	}
-	e.name = joinKey(opt.Name)
+	e.name = joinServerName(opt.Name)
 	if err != nil {
 		return "", err
 	}
-	go e.Watch()
 	return opt.Address, nil
 }
 
 func (e *ETCD) Unregister() error {
+	if e.isNull() {
+		return errClientNotExist
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	_, err := e.client.Delete(ctx, e.name)
@@ -53,12 +55,12 @@ func (e *ETCD) Unregister() error {
 	return nil
 }
 
-func (e *ETCD) Discover() (map[string][]string, error) {
+func (e *ETCD) Discover(name string) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	get, err := e.client.Get(ctx, prefix, clientv3.WithPrefix())
+	get, err := e.client.Get(ctx, joinServerPrefix(name), clientv3.WithPrefix())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, kv := range get.Kvs {
 		if kv != nil {
@@ -72,70 +74,68 @@ func (e *ETCD) Discover() (map[string][]string, error) {
 			e.lock.Unlock()
 		}
 	}
+	return nil
+}
+
+func (e *ETCD) ServerNode(name string) (map[string][]string, error) {
+	if e.isNull() {
+		return nil, errClientNotExist
+	}
 	var list = make(map[string][]string)
+NODE:
 	e.lock.Lock()
 	for _, opt := range e.node {
-		addr, ok := list[opt.Name]
-		if ok {
-			addr = append(addr, opt.Address)
-			list[opt.Name] = addr
-		} else {
-			as := make([]string, 0)
-			as = append(as, opt.Address)
-			list[opt.Name] = as
+		if opt.Name == name {
+			addr, ok := list[opt.Name]
+			if ok {
+				addr = append(addr, opt.Address)
+				list[opt.Name] = addr
+			} else {
+				as := make([]string, 0)
+				as = append(as, opt.Address)
+				list[opt.Name] = as
+			}
 		}
 	}
 	e.lock.Unlock()
+	if len(list) == 0 {
+		err := e.Discover(name)
+		if err != nil {
+			return nil, err
+		}
+		goto NODE
+	}
+	b, ok := e.serverWatch[name]
+	if !ok || (ok && !b) {
+		go e.Watch(name)
+	}
 	return list, nil
 }
 
-func (e *ETCD) ServerNode() map[string][]string {
-	var list = make(map[string][]string)
-	e.lock.Lock()
-	for _, opt := range e.node {
-		addr, ok := list[opt.Name]
-		if ok {
-			addr = append(addr, opt.Address)
-			list[opt.Name] = addr
-		} else {
-			as := make([]string, 0)
-			as = append(as, opt.Address)
-			list[opt.Name] = as
-		}
-	}
-	e.lock.Unlock()
-	return list
-}
-
-func (e *ETCD) Watch() {
+func (e *ETCD) Watch(name string) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	if e.isNull() {
-		fmt.Println(errClientNotExist)
-		return
-	}
-	for {
-		watch := e.client.Watch(ctx, prefix, clientv3.WithPrefix())
-		for ev := range watch {
-			for _, v := range ev.Events {
-				if v != nil && v.PrevKv != nil {
-					fmt.Println("type:", mvccpb.Event_EventType_name[int32(v.Type)])
-					fmt.Println("key:", string(v.PrevKv.Key))
-					fmt.Println("val:", string(v.PrevKv.Value))
-					e.lock.Lock()
-					if v.Type == mvccpb.PUT {
-						if e.node != nil {
-							e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
-						} else {
-							e.node = make(map[string]Option)
-							e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
-						}
+	watch := e.client.Watch(ctx, joinServerPrefix(name), clientv3.WithPrefix())
+	for ev := range watch {
+		for _, v := range ev.Events {
+			fmt.Println("v", v)
+			if v != nil && v.Kv != nil {
+				fmt.Println("type:", mvccpb.Event_EventType_name[int32(v.Type)])
+				fmt.Println("key:", string(v.Kv.Key))
+				fmt.Println("val:", string(v.Kv.Value))
+				e.lock.Lock()
+				if v.Type == mvccpb.PUT {
+					if e.node != nil {
+						e.node[string(v.PrevKv.Key)] = encode(v.PrevKv.Value)
+					} else {
+						e.node = make(map[string]Option)
+						e.node[string(v.Kv.Key)] = encode(v.Kv.Value)
 					}
-					if v.Type == mvccpb.DELETE {
-						delete(e.node, string(v.PrevKv.Key))
-					}
-					e.lock.Unlock()
 				}
+				if v.Type == mvccpb.DELETE {
+					delete(e.node, string(v.Kv.Key))
+				}
+				e.lock.Unlock()
 			}
 		}
 	}
